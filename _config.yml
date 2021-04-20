@@ -1,11 +1,11 @@
 # Basic
-title: Vno Jekyll
-subtitle: A blog-orientation theme for Jekyll
-welcome_message: <a href="https://github.com/onevcat/vno-jekyll" target="_blank">Download the theme</a>
-description: Vno Jekyll is a port of my Ghost theme vno.
-creator: <a href="http://onev.cat">@onevcat</a>
+title: 博客
+subtitle: Cookie的个人博客网站
+welcome_message: <a href="https://github.com/MrCookie0313/cookie.github.io" target="_blank">Download the theme</a>
+description: 欢迎来到的我的博客.
+creator: <a href="https://github.com/MrCookie0313">@cookie</a>
 
-url: "http://vno.onevcat.com"
+url: "https://github.com/MrCookie0313"
 
 permalink: /:year/:month/:title/
 
@@ -32,14 +32,14 @@ paginate_path: "page/:num/"
 
 # Comment
 comment:
-    disqus: vno-jekyll
+    disqus: Mr-Cookie
     # duoshuo: 
     
 # Social
 social:
     weibo: u/6391752937
     github: MrCookie0313
-    twitter: onevcat
+    twitter: Cookie
     gplus: 107108267983477358170
     mail: 1120392391@qq.com
 
