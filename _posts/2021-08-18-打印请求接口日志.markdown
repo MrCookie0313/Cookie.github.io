@@ -1,0 +1,197 @@
+##Spring Boot 自定义注解，AOP 切面统一打印出入参请求日志
+###一、先看看切面日志输出效果
+####在看看实现方法之前，我们先看下切面日志输出效果咋样：
+![155645508854810.png](https://i.loli.net/2021/08/18/x9fAcGO6ltmeH5X.png)
+
+####从上图中可以看到，每个对于每个请求，开始与结束一目了然，并且打印了以下参数：
+#####URL: 请求接口地址；
+#####Description: 接口的中文说明信息；
+#####HTTP Method: 请求的方法，是 POST, GET, 还是 DELETE 等；
+#####Class Method: 被请求的方法路径 : 包名 + 方法名;
+#####IP: 请求方的 IP 地址；
+#####Request Args: 请求入参，以 JSON 格式输出；
+#####Response Args: 响应出参，以 JSON 格式输出；
+#####Time-Consuming: 请求耗时，以此估算每个接口的性能指数；
+#####怎么样？看上去效果还不错呢？接下来看看，我们要如何一步一步实现它呢？
+###二、添加 AOP Maven 依赖
+#####在项目 pom.xml 文件中添加依赖：
+```javascript
+          <!-- aop 依赖 -->
+          <dependency>
+              <groupId>org.springframework.boot</groupId>
+              <artifactId>spring-boot-starter-aop</artifactId>
+          </dependency>
+          
+          <!-- 用于日志切面中，以 json 格式打印出入参 -->
+          <dependency>
+              <groupId>com.google.code.gson</groupId>
+              <artifactId>gson</artifactId>
+              <version>2.8.5</version>
+          </dependency>
+```
+###三、自定义日志注解
+####让我们来自定义一个日志注解，如下所示：
+![155645541894834.png](https://i.loli.net/2021/08/18/nQplH3K7o5NrzTX.png)
+
+* ①：什么时候使用该注解，我们定义为运行时；
+* ②：注解用于什么地方，我们定义为作用于方法上；
+* ③：注解是否将包含在 JavaDoc 中；
+* ④：注解名为 WebLog;
+* ⑤：定义一个属性，默认为空字符串；
+
+####源码如下
+```javascript
+    package site.exception.springbootaopwebrequest.aspect;
+    
+    import java.lang.annotation.*;
+    
+    /**
+     * @author 犬小哈 （微信号：小哈学Java）
+     * @site www.exception.site
+     * @date 2019/2/12
+     * @time 下午9:19
+     * @discription
+     **/
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target({ElementType.METHOD})
+    @Documented
+    public @interface WebLog {
+        /**
+         * 日志描述信息
+         *
+         * @return
+         */
+        String description() default "";
+    
+    }
+ ````
+####完整代码
+```javascript
+package site.exception.springbootaopwebrequest.aspect;
+
+import com.google.gson.Gson;
+import org.aspectj.lang.JoinPoint;
+import org.aspectj.lang.ProceedingJoinPoint;
+import org.aspectj.lang.annotation.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Profile;
+import org.springframework.stereotype.Component;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
+
+import javax.servlet.http.HttpServletRequest;
+import java.lang.reflect.Method;
+
+/**
+ * @author 犬小哈 （微信号：小哈学Java）
+ * @site www.exception.site
+ * @date 2019/2/12
+ * @time 下午9:19
+ * @discription
+ **/
+@Aspect
+@Component
+@Profile({"dev", "test"})
+public class WebLogAspect {
+
+    private final static Logger logger         = LoggerFactory.getLogger(WebLogAspect.class);
+    /** 换行符 */
+    private static final String LINE_SEPARATOR = System.lineSeparator();
+
+    /** 以自定义 @WebLog 注解为切点 */
+    @Pointcut("@annotation(site.exception.springbootaopwebrequest.aspect.WebLog)")
+    public void webLog() {}
+
+    /**
+     * 在切点之前织入
+     * @param joinPoint
+     * @throws Throwable
+     */
+    @Before("webLog()")
+    public void doBefore(JoinPoint joinPoint) throws Throwable {
+        // 开始打印请求日志
+        ServletRequestAttributes attributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        HttpServletRequest request = attributes.getRequest();
+
+        // 获取 @WebLog 注解的描述信息
+        String methodDescription = getAspectLogDescription(joinPoint);
+
+        // 打印请求相关参数
+        logger.info("========================================== Start ==========================================");
+        // 打印请求 url
+        logger.info("URL            : {}", request.getRequestURL().toString());
+        // 打印描述信息
+        logger.info("Description    : {}", methodDescription);
+        // 打印 Http method
+        logger.info("HTTP Method    : {}", request.getMethod());
+        // 打印调用 controller 的全路径以及执行方法
+        logger.info("Class Method   : {}.{}", joinPoint.getSignature().getDeclaringTypeName(), joinPoint.getSignature().getName());
+        // 打印请求的 IP
+        logger.info("IP             : {}", request.getRemoteAddr());
+        // 打印请求入参
+        logger.info("Request Args   : {}", new Gson().toJson(joinPoint.getArgs()));
+    }
+
+    /**
+     * 在切点之后织入
+     * @throws Throwable
+     */
+    @After("webLog()")
+    public void doAfter() throws Throwable {
+        // 接口结束后换行，方便分割查看
+        logger.info("=========================================== End ===========================================" + LINE_SEPARATOR);
+    }
+
+    /**
+     * 环绕
+     * @param proceedingJoinPoint
+     * @return
+     * @throws Throwable
+     */
+    @Around("webLog()")
+    public Object doAround(ProceedingJoinPoint proceedingJoinPoint) throws Throwable {
+        long startTime = System.currentTimeMillis();
+        Object result = proceedingJoinPoint.proceed();
+        // 打印出参
+        logger.info("Response Args  : {}", new Gson().toJson(result));
+        // 执行耗时
+        logger.info("Time-Consuming : {} ms", System.currentTimeMillis() - startTime);
+        return result;
+    }
+
+
+    /**
+     * 获取切面注解的描述
+     *
+     * @param joinPoint 切点
+     * @return 描述信息
+     * @throws Exception
+     */
+    public String getAspectLogDescription(JoinPoint joinPoint)
+            throws Exception {
+        String targetName = joinPoint.getTarget().getClass().getName();
+        String methodName = joinPoint.getSignature().getName();
+        Object[] arguments = joinPoint.getArgs();
+        Class targetClass = Class.forName(targetName);
+        Method[] methods = targetClass.getMethods();
+        StringBuilder description = new StringBuilder("");
+        for (Method method : methods) {
+            if (method.getName().equals(methodName)) {
+                Class[] clazzs = method.getParameterTypes();
+                if (clazzs.length == arguments.length) {
+                    description.append(method.getAnnotation(WebLog.class).description());
+                    break;
+                }
+            }
+        }
+        return description.toString();
+    }
+
+}
+
+```
+
+###五、怎么使用呢？
+因为我们的切点是自定义注解 @WebLog, 所以我们仅仅需要在 Controller 控制器的每个接口方法添加 @WebLog 注解即可，如果我们不想某个接口打印出入参日志，不加注解就可以了：
+![155645834349857.png](https://i.loli.net/2021/08/18/NROYhaLiwGJMWs7.png)
